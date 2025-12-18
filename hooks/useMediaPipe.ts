@@ -34,7 +34,7 @@ export const useMediaPipe = (videoRef: React.RefObject<HTMLVideoElement | null>,
     p1RightVelocity: new THREE.Vector3(0,0,0),
     p2LeftVelocity: new THREE.Vector3(0,0,0),
     p2RightVelocity: new THREE.Vector3(0,0,0),
-    lastTimestamp: 0
+    lastTimestamp: performance.now()
   });
 
   const lastResultsRef = useRef<HandLandmarkerResult | null>(null);
@@ -78,18 +78,14 @@ export const useMediaPipe = (videoRef: React.RefObject<HTMLVideoElement | null>,
         await startCamera();
       } catch (err: any) {
         if (isActive) {
-            console.error("MediaPipe setup error:", err);
-            setError(`Hand tracking engine failed to load: ${err.message || 'Unknown error'}. Check your internet connection or browser settings.`);
+            console.error("MediaPipe error:", err);
+            setError(`Hiba a kézkövető motor betöltésekor. Kérlek ellenőrizd az internetkapcsolatot.`);
         }
       }
     };
 
     const startCamera = async () => {
       try {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            throw new Error("Camera API not supported in this browser.");
-        }
-
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: facingMode,
@@ -106,14 +102,14 @@ export const useMediaPipe = (videoRef: React.RefObject<HTMLVideoElement | null>,
                      setIsCameraReady(true);
                      predictWebcam();
                  }).catch(e => {
-                     setError("Camera playback was blocked. Please tap the screen to enable media.");
+                     setError("A kamera lejátszása blokkolva van. Kattints a képernyőre!");
                  });
              }
           };
         }
       } catch (err: any) {
         if (isActive) {
-            setError(`Camera access denied: ${err.message || 'Please enable camera permissions to play.'}`);
+            setError(`Kamera hozzáférés megtagadva. Kérlek engedélyezd a kamerát a böngészőben!`);
         }
       }
     };
@@ -122,13 +118,13 @@ export const useMediaPipe = (videoRef: React.RefObject<HTMLVideoElement | null>,
         if (!videoRef.current || !landmarkerRef.current || !isActive) return;
         const video = videoRef.current;
         if (video.videoWidth > 0 && video.videoHeight > 0 && video.readyState >= 2) {
-             let startTimeMs = performance.now();
+             const startTimeMs = performance.now();
              try {
                  const results = landmarkerRef.current.detectForVideo(video, startTimeMs);
                  lastResultsRef.current = results;
                  processResults(results);
              } catch (e) {
-                 // Non-fatal, just skip frame
+                 // Skip frame error
              }
         }
         requestRef.current = requestAnimationFrame(predictWebcam);
@@ -141,8 +137,6 @@ export const useMediaPipe = (videoRef: React.RefObject<HTMLVideoElement | null>,
 
         const s = handPositionsRef.current;
         const LERP = 0.5;
-
-        // Reset frame-local states
         const nextHands = { p1L: null, p1R: null, p2L: null, p2R: null };
 
         if (results.landmarks) {
@@ -153,13 +147,12 @@ export const useMediaPipe = (videoRef: React.RefObject<HTMLVideoElement | null>,
             const tip = landmarks[8];
             const worldPos = mapHandToWorld(tip.x, tip.y);
 
-            // Logic: Left side of screen (x > 0.5 because mirrored) is Player 1, Right side (x < 0.5) is Player 2
             if (tip.x > 0.5) {
-                if (isPhysicalRight) nextHands.p1R = worldPos;
-                else nextHands.p1L = worldPos;
+                if (isPhysicalRight) nextHands.p1R = worldPos as any;
+                else nextHands.p1L = worldPos as any;
             } else {
-                if (isPhysicalRight) nextHands.p2R = worldPos;
-                else nextHands.p2L = worldPos;
+                if (isPhysicalRight) nextHands.p2R = worldPos as any;
+                else nextHands.p2L = worldPos as any;
             }
           });
         }
@@ -167,18 +160,18 @@ export const useMediaPipe = (videoRef: React.RefObject<HTMLVideoElement | null>,
         const updateHand = (current: THREE.Vector3 | null, next: THREE.Vector3 | null, velocity: THREE.Vector3) => {
             if (next) {
                 if (current) {
-                    next.lerpVectors(current, next, LERP);
-                    if (deltaTime > 0) velocity.subVectors(next, current).divideScalar(deltaTime);
+                    next.lerpVectors(current, next as any, LERP);
+                    if (deltaTime > 0) velocity.subVectors(next as any, current).divideScalar(deltaTime);
                 }
                 return next;
             }
             return null;
         };
 
-        s.p1Left = updateHand(s.p1Left, nextHands.p1L, s.p1LeftVelocity);
-        s.p1Right = updateHand(s.p1Right, nextHands.p1R, s.p1RightVelocity);
-        s.p2Left = updateHand(s.p2Left, nextHands.p2L, s.p2LeftVelocity);
-        s.p2Right = updateHand(s.p2Right, nextHands.p2R, s.p2RightVelocity);
+        s.p1Left = updateHand(s.p1Left, nextHands.p1L, s.p1LeftVelocity) as any;
+        s.p1Right = updateHand(s.p1Right, nextHands.p1R, s.p1RightVelocity) as any;
+        s.p2Left = updateHand(s.p2Left, nextHands.p2L, s.p2LeftVelocity) as any;
+        s.p2Right = updateHand(s.p2Right, nextHands.p2R, s.p2RightVelocity) as any;
     };
 
     setupMediaPipe();
