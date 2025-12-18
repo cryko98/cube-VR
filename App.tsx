@@ -23,10 +23,15 @@ const App: React.FC = () => {
   const [chart, setChart] = useState<NoteData[]>([]);
   const [detectionThreshold, setDetectionThreshold] = useState(0.4);
 
-  const audioRef = useRef<HTMLAudioElement>(new Audio(selectedSong.url));
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   
   const { isCameraReady, handPositionsRef, lastResultsRef, error, toggleCamera } = useMediaPipe(videoRef, detectionThreshold);
+
+  // Initialize audio only on client side
+  useEffect(() => {
+    audioRef.current = new Audio(selectedSong.url);
+  }, []);
 
   // Sync audio source with selected song
   useEffect(() => {
@@ -64,8 +69,6 @@ const App: React.FC = () => {
 
   const castToTV = async () => {
       try {
-          const nav = navigator as any;
-          const win = window as any;
           if (document.fullscreenElement) {
               await document.exitFullscreen();
           } else {
@@ -112,22 +115,24 @@ const App: React.FC = () => {
     <div className="relative w-full h-screen bg-black overflow-hidden font-sans text-white">
       <video ref={videoRef} className="absolute opacity-0 pointer-events-none" playsInline muted autoPlay />
 
-      <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 1.8, 4], fov: 60 }}>
-          <Suspense fallback={null}>
-            <GameScene 
-                gameStatus={gameStatus}
-                audioRef={audioRef}
-                handPositionsRef={handPositionsRef}
-                chart={chart}
-                playerCount={playerCount}
-                bpm={selectedSong.bpm}
-                onNoteHit={handleNoteHit}
-                onNoteMiss={handleNoteMiss}
-                onSongEnd={() => setGameStatus(GameStatus.VICTORY)}
-                onRegistered={startGame}
-            />
-          </Suspense>
-      </Canvas>
+      <div className="absolute inset-0 z-0">
+        <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 1.8, 4], fov: 60 }}>
+            <Suspense fallback={null}>
+              <GameScene 
+                  gameStatus={gameStatus}
+                  audioRef={audioRef}
+                  handPositionsRef={handPositionsRef}
+                  chart={chart}
+                  playerCount={playerCount}
+                  bpm={selectedSong.bpm}
+                  onNoteHit={handleNoteHit}
+                  onNoteMiss={handleNoteMiss}
+                  onSongEnd={() => setGameStatus(GameStatus.VICTORY)}
+                  onRegistered={startGame}
+              />
+            </Suspense>
+        </Canvas>
+      </div>
 
       <WebcamPreview videoRef={videoRef} resultsRef={lastResultsRef} isCameraReady={isCameraReady} />
 
@@ -172,7 +177,7 @@ const App: React.FC = () => {
                         <Loader2 className="animate-spin text-blue-500" size={48} />
                         <div className="text-center">
                             <h2 className="text-xl font-black italic tracking-widest uppercase">Betöltés</h2>
-                            <p className="text-[10px] opacity-40 uppercase tracking-[0.3em] mt-2">Kamera és modulok inicializálása...</p>
+                            <p className="text-[10px] opacity-40 uppercase tracking-[0.3em] mt-2">Rendszerek inicializálása...</p>
                         </div>
                       </>
                   )}
