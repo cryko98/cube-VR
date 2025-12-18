@@ -11,7 +11,7 @@ import { generateDemoChart, SONGS } from './constants';
 import { useMediaPipe } from './hooks/useMediaPipe';
 import GameScene from './components/GameScene';
 import WebcamPreview from './components/WebcamPreview';
-import { Play, RefreshCw, Users, Tv, Camera, ChevronRight, Sliders, Music } from 'lucide-react';
+import { Play, RefreshCw, Users, Tv, Camera, ChevronRight, Sliders, Music, Loader2, AlertCircle } from 'lucide-react';
 
 const App: React.FC = () => {
   const [gameStatus, setGameStatus] = useState<GameStatus>(GameStatus.LOADING);
@@ -26,7 +26,7 @@ const App: React.FC = () => {
   const audioRef = useRef<HTMLAudioElement>(new Audio(selectedSong.url));
   const videoRef = useRef<HTMLVideoElement>(null);
   
-  const { isCameraReady, handPositionsRef, lastResultsRef, toggleCamera } = useMediaPipe(videoRef, detectionThreshold);
+  const { isCameraReady, handPositionsRef, lastResultsRef, error, toggleCamera } = useMediaPipe(videoRef, detectionThreshold);
 
   // Sync audio source with selected song
   useEffect(() => {
@@ -133,48 +133,74 @@ const App: React.FC = () => {
       <video ref={videoRef} className="absolute opacity-0 pointer-events-none" playsInline muted autoPlay />
 
       <Canvas shadows dpr={[1, 2]}>
-          {gameStatus !== GameStatus.LOADING && (
-             <GameScene 
-                gameStatus={gameStatus}
-                audioRef={audioRef}
-                handPositionsRef={handPositionsRef}
-                chart={chart}
-                playerCount={playerCount}
-                bpm={selectedSong.bpm}
-                onNoteHit={handleNoteHit}
-                onNoteMiss={handleNoteMiss}
-                onSongEnd={() => setGameStatus(GameStatus.VICTORY)}
-                onRegistered={startGame}
-             />
-          )}
+          <GameScene 
+            gameStatus={gameStatus}
+            audioRef={audioRef}
+            handPositionsRef={handPositionsRef}
+            chart={chart}
+            playerCount={playerCount}
+            bpm={selectedSong.bpm}
+            onNoteHit={handleNoteHit}
+            onNoteMiss={handleNoteMiss}
+            onSongEnd={() => setGameStatus(GameStatus.VICTORY)}
+            onRegistered={startGame}
+          />
       </Canvas>
 
       <WebcamPreview videoRef={videoRef} resultsRef={lastResultsRef} isCameraReady={isCameraReady} />
 
       {/* Heads-Up Display */}
-      <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-start pointer-events-none">
-          <div className="flex flex-col gap-1">
-              <div className="text-[10px] font-mono tracking-[0.3em] text-red-500 uppercase">System 01 / Score</div>
-              <div className="text-4xl font-black italic">{scores.p1.toLocaleString()}</div>
-              <div className="text-[10px] opacity-40">{combo.p1}X COMBO</div>
-          </div>
-
-          <div className="w-1/4 max-w-xs flex flex-col items-center gap-2">
-              <div className="w-full h-1 bg-gray-900 rounded-full overflow-hidden">
-                  <div className="h-full bg-white transition-all duration-300" style={{ width: `${health}%` }} />
+      {gameStatus !== GameStatus.LOADING && (
+          <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-start pointer-events-none z-10">
+              <div className="flex flex-col gap-1">
+                  <div className="text-[10px] font-mono tracking-[0.3em] text-red-500 uppercase">System 01 / Score</div>
+                  <div className="text-4xl font-black italic">{scores.p1.toLocaleString()}</div>
+                  <div className="text-[10px] opacity-40">{combo.p1}X COMBO</div>
               </div>
-              <div className="text-[8px] tracking-[0.5em] uppercase opacity-20">Integrity</div>
-          </div>
 
-          <div className="flex flex-col gap-1 items-end">
-              <div className="text-[10px] font-mono tracking-[0.3em] text-blue-500 uppercase">System 02 / Score</div>
-              <div className="text-4xl font-black italic text-right">{playerCount === 2 ? scores.p2.toLocaleString() : "OFFLINE"}</div>
-              <div className="text-[10px] opacity-40">{combo.p2}X COMBO</div>
+              <div className="w-1/4 max-w-xs flex flex-col items-center gap-2">
+                  <div className="w-full h-1 bg-gray-900 rounded-full overflow-hidden">
+                      <div className="h-full bg-white transition-all duration-300" style={{ width: `${health}%` }} />
+                  </div>
+                  <div className="text-[8px] tracking-[0.5em] uppercase opacity-20">Integrity</div>
+              </div>
+
+              <div className="flex flex-col gap-1 items-end">
+                  <div className="text-[10px] font-mono tracking-[0.3em] text-blue-500 uppercase">System 02 / Score</div>
+                  <div className="text-4xl font-black italic text-right">{playerCount === 2 ? scores.p2.toLocaleString() : "OFFLINE"}</div>
+                  <div className="text-[10px] opacity-40">{combo.p2}X COMBO</div>
+              </div>
           </div>
-      </div>
+      )}
 
       {/* User Interface Overlays */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-auto z-20">
+          {gameStatus === GameStatus.LOADING && (
+              <div className="flex flex-col items-center gap-4 bg-black/60 backdrop-blur-xl p-12 rounded-[3rem] border border-white/10 animate-pulse">
+                  {error ? (
+                      <div className="flex flex-col items-center gap-4 text-red-400 max-w-xs text-center">
+                          <AlertCircle size={48} />
+                          <h2 className="text-xl font-bold uppercase tracking-tighter">System Error</h2>
+                          <p className="text-xs opacity-80 leading-relaxed">{error}</p>
+                          <button 
+                            onClick={() => window.location.reload()}
+                            className="mt-4 px-6 py-2 bg-white/10 hover:bg-white/20 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] transition-colors"
+                          >
+                            Re-Link System
+                          </button>
+                      </div>
+                  ) : (
+                      <>
+                        <Loader2 className="animate-spin text-blue-500" size={48} />
+                        <div className="text-center">
+                            <h2 className="text-xl font-black italic tracking-widest uppercase">Initializing</h2>
+                            <p className="text-[10px] opacity-40 uppercase tracking-[0.3em] mt-2">Loading Optical Tracking & Audio</p>
+                        </div>
+                      </>
+                  )}
+              </div>
+          )}
+
           {gameStatus === GameStatus.IDLE && (
               <div className="bg-black/90 backdrop-blur-3xl p-10 rounded-[2.5rem] border border-white/10 w-full max-w-2xl text-center shadow-2xl animate-in fade-in zoom-in duration-500 overflow-y-auto max-h-[90vh]">
                   <h1 className="text-5xl font-black italic tracking-tighter mb-8">
@@ -296,7 +322,7 @@ const App: React.FC = () => {
           )}
       </div>
 
-      <div className="fixed bottom-6 left-6 flex gap-3 pointer-events-auto">
+      <div className="fixed bottom-6 left-6 flex gap-3 pointer-events-auto z-30">
           <button onClick={toggleCamera} className="w-10 h-10 rounded-full bg-black/50 hover:bg-white/10 border border-white/10 flex items-center justify-center transition-colors">
               <Camera size={16} />
           </button>

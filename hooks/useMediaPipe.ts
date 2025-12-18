@@ -75,14 +75,21 @@ export const useMediaPipe = (videoRef: React.RefObject<HTMLVideoElement | null>,
         }
 
         landmarkerRef.current = landmarker;
-        startCamera();
+        await startCamera();
       } catch (err: any) {
-        setError(`Failed to load hand tracking: ${err.message}`);
+        if (isActive) {
+            console.error("MediaPipe setup error:", err);
+            setError(`Hand tracking engine failed to load: ${err.message || 'Unknown error'}. Check your internet connection or browser settings.`);
+        }
       }
     };
 
     const startCamera = async () => {
       try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error("Camera API not supported in this browser.");
+        }
+
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: facingMode,
@@ -93,29 +100,35 @@ export const useMediaPipe = (videoRef: React.RefObject<HTMLVideoElement | null>,
 
         if (videoRef.current && isActive) {
           videoRef.current.srcObject = stream;
-          videoRef.current.onloadeddata = () => {
+          videoRef.current.onloadedmetadata = () => {
              if (isActive) {
-                 setIsCameraReady(true);
-                 predictWebcam();
+                 videoRef.current?.play().then(() => {
+                     setIsCameraReady(true);
+                     predictWebcam();
+                 }).catch(e => {
+                     setError("Camera playback was blocked. Please tap the screen to enable media.");
+                 });
              }
           };
         }
-      } catch (err) {
-        setError("Could not access camera.");
+      } catch (err: any) {
+        if (isActive) {
+            setError(`Camera access denied: ${err.message || 'Please enable camera permissions to play.'}`);
+        }
       }
     };
 
     const predictWebcam = () => {
         if (!videoRef.current || !landmarkerRef.current || !isActive) return;
         const video = videoRef.current;
-        if (video.videoWidth > 0 && video.videoHeight > 0) {
+        if (video.videoWidth > 0 && video.videoHeight > 0 && video.readyState >= 2) {
              let startTimeMs = performance.now();
              try {
                  const results = landmarkerRef.current.detectForVideo(video, startTimeMs);
                  lastResultsRef.current = results;
                  processResults(results);
              } catch (e) {
-                 console.warn("Detection failed", e);
+                 // Non-fatal, just skip frame
              }
         }
         requestRef.current = requestAnimationFrame(predictWebcam);
@@ -134,18 +147,17 @@ export const useMediaPipe = (videoRef: React.RefObject<HTMLVideoElement | null>,
 
         if (results.landmarks) {
           results.landmarks.forEach((landmarks, i) => {
+            if (!results.handedness || !results.handedness[i]) return;
             const classification = results.handedness[i][0];
             const isPhysicalRight = classification.categoryName === 'Right';
-            // In 'user' mode, image is mirrored. 
             const tip = landmarks[8];
             const worldPos = mapHandToWorld(tip.x, tip.y);
 
-            // Logic: Left side of screen (x < 0.5) is Player 1, Right side (x > 0.5) is Player 2
-            // Within that, classify by MediaPipe's handedness estimate
-            if (tip.x > 0.5) { // Left half of screen (mirrored)
+            // Logic: Left side of screen (x > 0.5 because mirrored) is Player 1, Right side (x < 0.5) is Player 2
+            if (tip.x > 0.5) {
                 if (isPhysicalRight) nextHands.p1R = worldPos;
                 else nextHands.p1L = worldPos;
-            } else { // Right half of screen
+            } else {
                 if (isPhysicalRight) nextHands.p2R = worldPos;
                 else nextHands.p2L = worldPos;
             }
